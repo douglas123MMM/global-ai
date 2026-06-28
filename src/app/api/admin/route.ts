@@ -184,3 +184,47 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
+
+export async function POST(req: NextRequest) {
+  try {
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+    const token = authHeader.substring(7)
+
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Sesion invalida' }, { status: 401 })
+    }
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    }
+
+    const { action } = await req.json()
+
+    if (action === 'process_commissions') {
+      const { data, error } = await supabaseAdmin.rpc('process_monthly_commissions')
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+
+      return NextResponse.json({
+        success: true,
+        result: data && data.length > 0 ? data[0] : { processed_count: 0, total_amount: 0 },
+      })
+    }
+
+    return NextResponse.json({ error: 'Accion invalida' }, { status: 400 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
