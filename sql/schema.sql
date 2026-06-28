@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   avatar_url TEXT,
   role TEXT DEFAULT 'user',
   referrer_code TEXT,
+  signup_ip TEXT,
+  email_verified BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

@@ -1,9 +1,32 @@
 {
+  "framework": "nextjs",
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "installCommand": "npm install",
-  "framework": "nextjs",
   "rewrites": [
     { "source": "/(.*)", "destination": "/" }
-  ]
+  ],
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "0 0 1 * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" }
+      ]
+    }
+  ],
+  "functions": {
+    "src/app/api/cron/route.ts": {
+      "memory": 512,
+      "maxDuration": 60
+    }
+  }
 }
