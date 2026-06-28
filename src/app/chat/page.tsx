@@ -22,7 +22,7 @@ export default function ChatPage() {
     if (!authLoading && !user) { router.push('/login?redirect=/chat') }
   }, [user, authLoading, router])
 
-  if (authLoading || chat.loadingSessions) {
+  if (authLoading || chat.isLoadingSessions) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
         <div className="flex gap-2">
@@ -35,16 +35,16 @@ export default function ChatPage() {
   }
 
   const handleSend = () => {
-    if (!input.trim() || chat.loading) return
+    if (!input.trim() || chat.isLoading) return
     chat.sendMessage(input)
     setInput('')
   }
 
   const EmptyState = () => (
-    <div className="text-center max-w-lg px-4">
+    <div className="text-center max-w-lg px-4 animate-fade-in">
       <h1 className="text-3xl md:text-4xl font-bold mb-4 gradient-text">Global AI Chat</h1>
       <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
-        Conversa con 8 modelos de IA de 6 proveedores. Configura tus API Keys en Settings.
+        8 modelos de IA. 6 proveedores. Trae tu propia API Key.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {[
@@ -69,55 +69,72 @@ export default function ChatPage() {
 
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--bg-primary)' }}>
-      <div className={`${sidebarOpen ? 'block' : 'hidden'} md:block h-screen sticky top-0 z-20 transition-all`}>
-        <ChatSidebar
-          sessions={chat.sessions}
-          activeId={chat.activeSession?.id || null}
-          onSelect={chat.loadSession}
-          onNew={chat.newChat}
-          onRename={chat.renameSession}
-          onDelete={chat.deleteSession}
-        />
-      </div>
+      {sidebarOpen && (
+        <div className="fixed md:sticky top-0 left-0 h-screen z-30 md:z-0 shadow-2xl md:shadow-none">
+          <ChatSidebar
+            sessions={chat.sessions}
+            currentSessionId={chat.currentSession?.id}
+            onNewChat={() => chat.createSession('Nueva conversacion', chat.selectedModel)}
+            onSelectSession={chat.switchSession}
+            onDeleteSession={chat.deleteSession}
+            onRenameSession={chat.renameSession}
+            isOpen={sidebarOpen}
+            onToggle={() => setSidebarOpen(false)}
+          />
+        </div>
+      )}
+
+      {!sidebarOpen && (
+        <button onClick={() => setSidebarOpen(true)}
+          className="fixed top-4 left-4 z-20 p-2 rounded-xl shadow-lg md:hidden"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--text-muted)' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      )}
 
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
-        <header className="flex items-center justify-between px-3 md:px-4 py-2 border-b sticky top-0 z-30" style={{ background: 'var(--nav-bg)', borderColor: 'var(--border)', backdropFilter: 'blur(16px)' }}>
+        <header className="flex items-center justify-between px-3 md:px-4 py-2 border-b sticky top-0 z-20"
+          style={{ background: 'var(--nav-bg)', borderColor: 'var(--border)', backdropFilter: 'blur(16px)' }}>
           <div className="flex items-center gap-2 min-w-0">
-            <button onClick={() => setSidebarOpen((p) => !p)} className="p-1.5 rounded-lg hover:bg-card-hover transition flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+            <button onClick={() => setSidebarOpen((p) => !p)}
+              className="p-1.5 rounded-lg hover:bg-card-hover transition flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
             </button>
             <Link href="/" className="text-base md:text-lg font-bold gradient-text truncate">Global AI</Link>
-            {chat.usageLimit.plan !== 'pro' && (
-              <span className="hidden sm:inline text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: 'var(--warning-light)', color: 'var(--warning)' }}>
-                {chat.usageLimit.used_today}/{chat.usageLimit.limit}
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <ModelSelector value={chat.model} onChange={chat.setModel} />
+            <div className="hidden sm:flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+              {chat.usage.limit === 'unlimited'
+                ? <span style={{ color: 'var(--success)' }}>✨ Pro</span>
+                : <span>{chat.messagesToday}/{chat.usage.limit} hoy</span>}
+            </div>
+            <ModelSelector value={chat.selectedModel} onChange={chat.setSelectedModel} />
             <ThemeToggle />
             <Link href="/settings/keys" className="text-xs hover:text-primary transition hidden sm:inline" style={{ color: 'var(--text-muted)' }}>Keys</Link>
-            <Link href="/dashboard" className="text-xs hover:text-primary transition" style={{ color: 'var(--text-muted)' }}>Dashboard</Link>
           </div>
         </header>
 
         {chat.error && (
-          <div className="px-4 py-2 text-xs font-medium flex items-center gap-2" style={{ background: 'var(--danger-light)', color: 'var(--danger)', borderBottom: '1px solid var(--danger)' }}>
+          <div className="px-4 py-2 text-xs font-medium flex items-center gap-2" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
             <span>⚠️</span> {chat.error}
             <Link href="/settings/keys" className="underline ml-auto">Configurar</Link>
           </div>
         )}
 
-        {!chat.usageLimit.canChat && (
-          <div className="px-4 py-2 text-xs font-medium flex items-center gap-2" style={{ background: 'var(--warning-light)', color: 'var(--warning)', borderBottom: '1px solid var(--warning)' }}>
-            <span>⚠️</span> Limite diario alcanzado.
-            <Link href="/pricing" className="underline ml-auto font-bold">Actualizar a Pro</Link>
+        {chat.isLimitReached && (
+          <div className="px-4 py-2 text-xs font-medium flex items-center gap-2" style={{ background: 'var(--warning-light)', color: 'var(--warning)' }}>
+            <span>⚠️</span> Limite diario alcanzado ({chat.messagesToday} consultas). <Link href="/pricing" className="underline ml-auto font-bold">Actualizar a Pro</Link>
           </div>
         )}
 
-        <MessageList messages={chat.messages} loading={chat.loading} emptyState={<EmptyState />} />
-
-        <MessageInput value={input} onChange={setInput} onSend={handleSend} disabled={chat.loading || !chat.usageLimit.canChat} />
+        <MessageList messages={chat.messages} loading={chat.isLoading} emptyState={<EmptyState />} />
+        <MessageInput value={input} onChange={setInput} onSend={handleSend}
+          disabled={chat.isLoading || chat.isLimitReached}
+          placeholder={chat.isLimitReached ? 'Limite diario alcanzado. Actualiza a Pro.' : 'Escribe tu mensaje...'} />
       </div>
     </div>
   )

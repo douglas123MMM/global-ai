@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 
-export type Message = { role: 'user' | 'assistant' | 'system'; content: string }
+export type Message = { role: 'user' | 'assistant' | 'system'; content: string; timestamp: string }
 
 export type Session = {
   id: string
@@ -14,9 +14,9 @@ export type Session = {
   messages?: Message[]
 }
 
-export type UsageLimit = {
+export type UsageInfo = {
   used_today: number
-  limit: number
+  limit: number | 'unlimited'
   plan: string
   canChat: boolean
 }
@@ -29,12 +29,12 @@ async function getToken() {
 
 export function useChat() {
   const [sessions, setSessions] = useState<Session[]>([])
-  const [activeSession, setActiveSession] = useState<Session | null>(null)
+  const [currentSession, setCurrentSession] = useState<Session | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
-  const [model, setModel] = useState('gpt-4o')
-  const [loading, setLoading] = useState(false)
-  const [loadingSessions, setLoadingSessions] = useState(true)
-  const [usageLimit, setUsageLimit] = useState<UsageLimit>({ used_today: 0, limit: 10, plan: 'free', canChat: true })
+  const [selectedModel, setSelectedModel] = useState('gpt-4o')
+  const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingSessions, setIsLoadingSessions] = useState(true)
+  const [usage, setUsage] = useState<UsageInfo>({ used_today: 0, limit: 10, plan: 'free', canChat: true })
   const [error, setError] = useState<string | null>(null)
 
   const loadSessions = useCallback(async () => {
@@ -44,35 +44,53 @@ export function useChat() {
       if (res.ok) {
         const data = await res.json()
         setSessions(data.sessions || [])
-        setUsageLimit(data.usage || { used_today: 0, limit: 10, plan: 'free', canChat: true })
+        if (data.usage) setUsage({
+          used_today: data.usage.used_today,
+          limit: data.usage.limit === 999 ? 'unlimited' : data.usage.limit,
+          plan: data.usage.plan,
+          canChat: data.usage.canChat,
+        })
       }
     } catch { /* */ } finally {
-      setLoadingSessions(false)
+      setIsLoadingSessions(false)
     }
   }, [])
 
-  const loadSession = useCallback(async (id: string) => {
+  const createSession = useCallback(async (title: string, model: string) => {
+    setCurrentSession(null)
+    setMessages([])
+    setSelectedModel(model)
+    setError(null)
+  }, [])
+
+  const switchSession = useCallback(async (id: string) => {
     try {
       const token = await getToken()
       const res = await fetch(`/api/chat?id=${id}`, { headers: { Authorization: `Bearer ${token}` } })
       if (res.ok) {
         const data = await res.json()
         const session = data.session
-        setActiveSession(session)
+        setCurrentSession(session)
         setMessages(session.messages || [])
-        if (session.model) setModel(session.model)
+        if (session.model) setSelectedModel(session.model)
+        setError(null)
       }
     } catch { /* */ }
   }, [])
 
   const sendMessage = useCallback(async (content: string) => {
-    if (!content.trim() || loading) return
+    if (!content.trim() || isLoading) return
+    if (!usage.canChat) {
+      setError('Limite diario alcanzado. Actualiza a Pro para continuar.')
+      return
+    }
 
-    const userMsg: Message = { role: 'user', content: content.trim() }
+    const now = new Date().toISOString()
+    const userMsg: Message = { role: 'user', content: content.trim(), timestamp: now }
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setError(null)
-    setLoading(true)
+    setIsLoading(true)
 
     try {
       const token = await getToken()
@@ -80,55 +98,69 @@ export function useChat() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          model,
-          messages: newMessages,
-          sessionId: activeSession?.id || null,
+          model: selectedModel,
+          messages: newMessages.map(({ role, content }) => ({ role, content })),
+          sessionId: currentSession?.id || null,
         }),
       })
       const data = await res.json()
 
       if (data.error) {
-        setMessages([...newMessages, { role: 'assistant', content: data.error }])
-        if (data.needsApiKey) {
-          setError(`Falta configurar API Key para ${data.provider}.`)
-        }
-        if (data.limitReached) {
-          setUsageLimit((p) => ({ ...p, canChat: false }))
-        }
+        setMessages([...newMessages, {
+          role: 'assistant',
+          content: data.limitReached
+            ? '⚠️ Limite diario alcanzado. Actualiza a Pro para consultas ilimitadas.'
+            : data.needsApiKey
+              ? `⚠️ Configura tu API Key de ${data.provider} en Settings para usar este modelo.`
+              : `❌ ${data.error}`,
+          timestamp: now,
+        }])
+        if (data.limitReached) setUsage((p) => ({ ...p, canChat: false }))
+        if (data.needsApiKey) setError(`Falta API Key de ${data.provider}.`)
       } else {
-        const assistantMsg: Message = { role: 'assistant', content: data.content }
+        const assistantMsg: Message = { role: 'assistant', content: data.content, timestamp: now }
         setMessages([...newMessages, assistantMsg])
 
         if (data.sessionId) {
-          setActiveSession((prev) => prev ? { ...prev, id: data.sessionId } : {
+          setCurrentSession((prev) => prev ? { ...prev, id: data.sessionId } : {
             id: data.sessionId,
             title: content.substring(0, 60),
-            model,
+            model: selectedModel,
             provider: '',
             tokens_used: data.tokens || 0,
-            updated_at: new Date().toISOString(),
+            updated_at: now,
           })
         }
-        if (data.usage) setUsageLimit(data.usage)
+        if (data.usage) setUsage({
+          used_today: data.usage.used_today,
+          limit: data.usage.limit === 999 ? 'unlimited' : data.usage.limit,
+          plan: data.usage.plan,
+          canChat: data.usage.canChat,
+        })
         loadSessions()
       }
     } catch {
-      setMessages([...newMessages, { role: 'assistant', content: 'Error de conexion' }])
+      setMessages([...newMessages, { role: 'assistant', content: '❌ Error de conexion. Intenta de nuevo.', timestamp: now }])
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
-  }, [messages, model, activeSession, loading, loadSessions])
+  }, [messages, selectedModel, currentSession, isLoading, usage.canChat, loadSessions])
 
-  const newChat = useCallback(() => {
-    setActiveSession(null)
-    setMessages([])
-    setError(null)
-  }, [])
+  const deleteSession = useCallback(async (id: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== id))
+    if (currentSession?.id === id) {
+      setCurrentSession(null)
+      setMessages([])
+    }
+    try {
+      const token = await getToken()
+      await fetch(`/api/chat?id=${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+    } catch { /* */ }
+  }, [currentSession])
 
   const renameSession = useCallback(async (id: string, title: string) => {
     setSessions((prev) => prev.map((s) => s.id === id ? { ...s, title } : s))
-    if (activeSession?.id === id) setActiveSession((p) => p ? { ...p, title } : null)
-
+    if (currentSession?.id === id) setCurrentSession((p) => p ? { ...p, title } : null)
     try {
       const token = await getToken()
       await fetch('/api/chat', {
@@ -137,26 +169,34 @@ export function useChat() {
         body: JSON.stringify({ sessionId: id, title }),
       })
     } catch { /* */ }
-  }, [activeSession])
-
-  const deleteSession = useCallback(async (id: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== id))
-    if (activeSession?.id === id) {
-      setActiveSession(null)
-      setMessages([])
-    }
-
-    try {
-      const token = await getToken()
-      await fetch(`/api/chat?id=${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
-    } catch { /* */ }
-  }, [activeSession])
+  }, [currentSession])
 
   useEffect(() => { loadSessions() }, [loadSessions])
 
+  const messagesToday = messages.filter((m) =>
+    m.role === 'user' &&
+    new Date(m.timestamp).toDateString() === new Date().toDateString()
+  ).length
+
+  const isLimitReached = usage.limit !== 'unlimited' && messagesToday >= Number(usage.limit)
+
   return {
-    sessions, activeSession, messages, model, loading, loadingSessions,
-    usageLimit, error,
-    setModel, loadSession, sendMessage, newChat, renameSession, deleteSession,
+    sessions,
+    currentSession,
+    messages,
+    selectedModel,
+    isLoading,
+    isLoadingSessions,
+    usage,
+    error,
+    messagesToday,
+    isLimitReached,
+    setSelectedModel,
+    loadSessions,
+    createSession,
+    switchSession,
+    sendMessage,
+    deleteSession,
+    renameSession,
   }
 }

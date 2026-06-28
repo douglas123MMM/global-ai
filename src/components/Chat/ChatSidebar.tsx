@@ -5,14 +5,19 @@ import { useState } from 'react'
 
 type Props = {
   sessions: Session[]
-  activeId: string | null
-  onSelect: (id: string) => void
-  onNew: () => void
-  onRename: (id: string, title: string) => void
-  onDelete: (id: string) => void
+  currentSessionId: string | null | undefined
+  onNewChat: () => void
+  onSelectSession: (id: string) => void
+  onDeleteSession: (id: string) => void
+  onRenameSession: (id: string, title: string) => void
+  isOpen: boolean
+  onToggle: () => void
 }
 
-export default function ChatSidebar({ sessions, activeId, onSelect, onNew, onRename, onDelete }: Props) {
+export default function ChatSidebar({
+  sessions, currentSessionId, onNewChat, onSelectSession,
+  onDeleteSession, onRenameSession, isOpen, onToggle,
+}: Props) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
 
@@ -23,20 +28,25 @@ export default function ChatSidebar({ sessions, activeId, onSelect, onNew, onRen
 
   const confirmRename = () => {
     if (editingId && editTitle.trim()) {
-      onRename(editingId, editTitle.trim())
+      onRenameSession(editingId, editTitle.trim())
     }
     setEditingId(null)
   }
 
+  if (!isOpen) return null
+
   return (
     <div className="w-64 flex-shrink-0 border-r flex flex-col h-full" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
-      <div className="p-3">
+      <div className="p-3 flex items-center justify-between">
         <button
-          onClick={onNew}
-          className="w-full px-3 py-2.5 rounded-xl text-sm font-semibold transition hover:opacity-90"
+          onClick={onNewChat}
+          className="flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold transition hover:opacity-90"
           style={{ background: 'var(--primary)', color: 'white' }}
         >
           + Nueva Conversacion
+        </button>
+        <button onClick={onToggle} className="ml-2 p-1.5 rounded-lg md:hidden hover:bg-card-hover" style={{ color: 'var(--text-muted)' }}>
+          ✕
         </button>
       </div>
 
@@ -45,10 +55,13 @@ export default function ChatSidebar({ sessions, activeId, onSelect, onNew, onRen
           <div
             key={s.id}
             className={`group flex items-center gap-1 px-3 py-2 rounded-lg cursor-pointer transition text-sm ${
-              s.id === activeId ? 'bg-primary/20 font-medium' : 'hover:bg-card-hover'
+              s.id === currentSessionId ? 'font-medium' : ''
             }`}
-            style={{ color: s.id === activeId ? 'var(--primary)' : 'var(--text-secondary)' }}
-            onClick={() => onSelect(s.id)}
+            style={{
+              background: s.id === currentSessionId ? 'var(--primary-light)' : 'transparent',
+              color: s.id === currentSessionId ? 'var(--primary)' : 'var(--text-secondary)',
+            }}
+            onClick={() => onSelectSession(s.id)}
           >
             {editingId === s.id ? (
               <input
@@ -64,35 +77,19 @@ export default function ChatSidebar({ sessions, activeId, onSelect, onNew, onRen
             ) : (
               <span className="truncate flex-1">{s.title}</span>
             )}
-            <div className="hidden group-hover:flex items-center gap-0.5">
-              <button
-                onClick={(e) => { e.stopPropagation(); startRename(s) }}
-                className="p-1 rounded hover:bg-card-hover transition text-xs"
-                style={{ color: 'var(--text-muted)' }}
-                title="Renombrar"
-              >
-                ✏️
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(s.id) }}
-                className="p-1 rounded hover:bg-danger/20 transition text-xs"
-                style={{ color: 'var(--danger)' }}
-                title="Eliminar"
-              >
-                🗑
-              </button>
+            <div className="hidden group-hover:flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+              <button onClick={() => startRename(s)} className="p-1 rounded hover:bg-card-hover text-xs" style={{ color: 'var(--text-muted)' }}>✏️</button>
+              <button onClick={() => onDeleteSession(s.id)} className="p-1 rounded hover:bg-danger/20 text-xs" style={{ color: 'var(--danger)' }}>🗑</button>
             </div>
           </div>
         ))}
         {sessions.length === 0 && (
-          <p className="text-xs text-center py-8" style={{ color: 'var(--text-muted)' }}>
-            Sin conversaciones
-          </p>
+          <p className="text-xs text-center py-8" style={{ color: 'var(--text-muted)' }}>Sin conversaciones</p>
         )}
       </div>
 
       <div className="p-3 border-t text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
-        <a href="/settings/keys" className="hover:text-primary transition">Configurar API Keys</a>
+        <a href="/settings/keys" className="hover:text-primary transition">API Keys</a>
       </div>
     </div>
   )

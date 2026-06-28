@@ -2,11 +2,11 @@
 
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { type Message } from '@/lib/hooks/useChat'
+import type { Message as ChatMessage } from '@/lib/hooks/useChat'
 import { useEffect, useRef } from 'react'
 
 type Props = {
-  messages: Message[]
+  messages: ChatMessage[]
   loading: boolean
   emptyState?: React.ReactNode
 }
