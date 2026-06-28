@@ -1,4 +1,4 @@
-export async function callAnthropic(apiKey: string, messages: any[], model: string): Promise<string> {
+export async function callAnthropic(apiKey: string, messages: any[], model: string): Promise<{ content: string; tokens: number }> {
   const system = messages.find((m: any) => m.role === 'system')?.content || ''
   const msgs = messages.filter((m: any) => m.role !== 'system').map((m: any) => ({ role: m.role, content: m.content }))
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -8,5 +8,5 @@ export async function callAnthropic(apiKey: string, messages: any[], model: stri
   })
   const data = await res.json()
   if (data.error) throw new Error(`Anthropic: ${data.error.message}`)
-  return data.content[0].text
+  return { content: data.content[0].text, tokens: (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0) }
 }

@@ -53,6 +53,8 @@ export default function AdminPage() {
   const [founders, setFounders] = useState<AdminFounder[]>([])
   const [loading, setLoading] = useState(true)
   const [noteMap, setNoteMap] = useState<Record<string, string>>({})
+  const [processingCommissions, setProcessingCommissions] = useState(false)
+  const [commissionsMsg, setCommissionsMsg] = useState('')
 
   const getToken = useCallback(async () => {
     const { createClient } = await import('@/lib/supabase/client')
@@ -120,6 +122,29 @@ export default function AdminPage() {
     fetchData('dashboard')
   }
 
+  const handleProcessCommissions = async () => {
+    setProcessingCommissions(true)
+    setCommissionsMsg('')
+    try {
+      const token = await getToken()
+      const res = await fetch('/api/cron', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setCommissionsMsg(`Comisiones procesadas: ${data.commissions_created || 0} creadas`)
+      } else {
+        setCommissionsMsg(data.error || 'Error al procesar')
+      }
+      fetchData('dashboard')
+    } catch {
+      setCommissionsMsg('Error de conexion')
+    } finally {
+      setProcessingCommissions(false)
+    }
+  }
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -171,7 +196,8 @@ export default function AdminPage() {
         </div>
 
         {tab === 'dashboard' && dashboard && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
             {[
               { label: 'Usuarios', value: dashboard.total_users },
               { label: 'Referidos Totales', value: dashboard.total_referrals },
@@ -184,9 +210,35 @@ export default function AdminPage() {
                 <p className="text-xs text-text-muted mb-1">{s.label}</p>
                 <p className={`text-2xl font-bold ${s.color || ''}`}>{s.value}</p>
               </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+
+            <div className="glass p-4 rounded-xl mb-8">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <h3 className="font-semibold text-sm">Procesar Comisiones Mensuales</h3>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                    Ejecuta el calculo de comisiones para todos los afiliados del mes actual
+                  </p>
+                </div>
+                <button
+                  onClick={handleProcessCommissions}
+                  disabled={processingCommissions}
+                  className="px-4 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50"
+                  style={{ background: 'var(--primary)', color: 'white' }}
+                >
+                  {processingCommissions ? 'Procesando...' : 'Procesar Ahora'}
+                </button>
+              </div>
+              {commissionsMsg && (
+                <p className={`text-sm mt-2 font-medium ${commissionsMsg.includes('Error') ? '' : ''}`}
+                  style={{ color: commissionsMsg.includes('Error') ? 'var(--danger)' : 'var(--success)' }}>
+                  {commissionsMsg}
+                </p>
+              )}
+            </div>
+          </>
+          )}
 
         {tab === 'withdrawals' && (
           <div className="glass rounded-2xl overflow-hidden">

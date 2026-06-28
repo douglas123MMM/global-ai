@@ -15,7 +15,7 @@ function RegisterForm() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
 
   useEffect(() => {
     const ref = searchParams.get('ref')
@@ -26,6 +26,16 @@ function RegisterForm() {
     if (user) router.push('/dashboard')
   }, [user, router])
 
+  const getPasswordStrength = (pwd: string): { label: string; color: string; width: string } => {
+    if (!pwd) return { label: '', color: 'transparent', width: '0%' }
+    if (pwd.length < 6) return { label: 'Debil', color: 'var(--danger)', width: '25%' }
+    if (pwd.length < 8) return { label: 'Media', color: 'var(--warning)', width: '50%' }
+    if (pwd.length < 10 || !/[A-Z]/.test(pwd) || !/[0-9]/.test(pwd)) return { label: 'Buena', color: 'var(--accent)', width: '75%' }
+    return { label: 'Fuerte', color: 'var(--success)', width: '100%' }
+  }
+
+  const passwordStrength = getPasswordStrength(password)
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -33,13 +43,9 @@ function RegisterForm() {
     setLoading(true)
 
     try {
-      const token = await getAuthToken()
       const res = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
           password,
@@ -54,20 +60,23 @@ function RegisterForm() {
         return
       }
 
-      setSuccess('Cuenta creada! Redirigiendo al login...')
-      setTimeout(() => router.push('/login'), 1500)
+      setSuccess('Cuenta creada! Iniciando sesion automaticamente...')
+
+      const { createClient: createSupabaseClient } = await import('@/lib/supabase/client')
+      const supabase = createSupabaseClient()
+      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password })
+      if (loginError) {
+        setSuccess('Cuenta creada! Redirigiendo al login...')
+        setTimeout(() => router.push('/login'), 1500)
+        return
+      }
+      await refreshUser()
+      router.push('/dashboard')
     } catch {
       setError('Error de conexion')
     } finally {
       setLoading(false)
     }
-  }
-
-  async function getAuthToken() {
-    const { createClient: createSupabaseClient } = await import('@/lib/supabase/client')
-    const client = createSupabaseClient()
-    const { data } = await client.auth.getSession()
-    return data.session?.access_token || ''
   }
 
   return (
@@ -90,45 +99,60 @@ function RegisterForm() {
 
       <form onSubmit={handleRegister} className="space-y-4">
         <div>
-          <label className="block text-sm text-text-muted mb-1">Nombre Completo</label>
+          <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Nombre Completo</label>
           <input
             type="text"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary"
+            className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition"
+            style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
             required
+            autoComplete="name"
           />
         </div>
         <div>
-          <label className="block text-sm text-text-muted mb-1">Email</label>
+          <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Email</label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary"
+            className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition"
+            style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
             required
+            autoComplete="email"
           />
         </div>
         <div>
-          <label className="block text-sm text-text-muted mb-1">Contrasena</label>
+          <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Contrasena</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary"
+            className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition"
+            style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
             required
             minLength={6}
+            autoComplete="new-password"
           />
+          {password && (
+            <div className="mt-2">
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-card-hover)' }}>
+                <div className="h-full rounded-full transition-all duration-300" style={{ width: passwordStrength.width, background: passwordStrength.color }} />
+              </div>
+              <p className="text-xs mt-1" style={{ color: passwordStrength.color }}>{passwordStrength.label}</p>
+            </div>
+          )}
         </div>
         <div>
-          <label className="block text-sm text-text-muted mb-1">
+          <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
             Codigo de Referido {referralCode && '(detectado)'}
           </label>
           <input
             type="text"
             value={referralCode}
             onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-            className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary uppercase"
+            className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary uppercase transition"
+            style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
             placeholder="Opcional: ABC123XY"
             maxLength={8}
           />
@@ -136,14 +160,15 @@ function RegisterForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-lg font-semibold transition disabled:opacity-50"
+          className="w-full py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
+          style={{ background: 'var(--primary)', color: 'white' }}
         >
           {loading ? 'Creando cuenta...' : 'Registrarse'}
         </button>
       </form>
-      <p className="text-center text-text-muted text-sm mt-4">
+      <p className="text-center text-sm mt-5" style={{ color: 'var(--text-muted)' }}>
         Ya tienes cuenta?{' '}
-        <Link href="/login" className="text-primary hover:underline">
+        <Link href="/login" className="font-semibold hover:underline" style={{ color: 'var(--primary)' }}>
           Inicia Sesion
         </Link>
       </p>
@@ -153,8 +178,8 @@ function RegisterForm() {
 
 export default function RegisterPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <Suspense fallback={<div className="text-text-muted">Cargando...</div>}>
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--bg-primary)' }}>
+      <Suspense fallback={<div style={{ color: 'var(--text-muted)' }}>Cargando...</div>}>
         <RegisterForm />
       </Suspense>
     </div>

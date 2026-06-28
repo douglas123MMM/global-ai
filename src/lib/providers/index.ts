@@ -5,12 +5,14 @@ import { callMistral } from './mistral'
 import { callGroq } from './groq'
 import { callNVIDIA } from './nvidia'
 
+export type ProviderResult = { content: string; tokens: number }
+
 export async function callProvider(
   provider: string,
   apiKey: string,
   messages: any[],
   model: string
-): Promise<string> {
+): Promise<ProviderResult> {
   switch (provider) {
     case 'openai': return callOpenAI(apiKey, messages, model)
     case 'anthropic': return callAnthropic(apiKey, messages, model)

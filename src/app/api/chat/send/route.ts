@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { callProvider } from '@/lib/providers'
 
 const MODELS: Record<string, { provider: string; model: string }> = {
   'gpt-4o': { provider: 'openai', model: 'gpt-4o' },
@@ -23,79 +24,26 @@ async function getApiKey(userId: string, provider: string): Promise<string | nul
   return data?.api_key || null
 }
 
-async function callProvider(provider: string, apiKey: string, model: string, messages: any[]) {
-  const headers = { 'Content-Type': 'application/json' }
-  let url = ''
-  let body: any = {}
+async function countMessagesToday(userId: string): Promise<number> {
+  const today = new Date().toISOString().split('T')[0]
+  const { data: sessions } = await supabaseAdmin
+    .from('chat_sessions')
+    .select('messages')
+    .eq('user_id', userId)
+    .gte('updated_at', today)
 
-  switch (provider) {
-    case 'openai':
-    case 'groq': {
-      url = provider === 'openai'
-        ? 'https://api.openai.com/v1/chat/completions'
-        : 'https://api.groq.com/openai/v1/chat/completions'
-      body = { model, messages, max_tokens: 4096 }
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { ...headers, 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify(body),
-      })
-      const d = await r.json()
-      if (d.error) throw new Error(d.error.message)
-      return { content: d.choices[0].message.content, tokens: d.usage?.total_tokens || 0 }
-    }
+  if (!sessions) return 0
 
-    case 'anthropic': {
-      const system = messages.find((m: any) => m.role === 'system')?.content || ''
-      const msgs = messages.filter((m: any) => m.role !== 'system').map((m: any) => ({ role: m.role, content: m.content }))
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { ...headers, 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model, system, messages: msgs, max_tokens: 4096 }),
-      })
-      const d = await r.json()
-      if (d.error) throw new Error(d.error.message)
-      return { content: d.content[0].text, tokens: (d.usage?.input_tokens || 0) + (d.usage?.output_tokens || 0) }
-    }
-
-    case 'google': {
-      const contents = messages.map((m: any) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      }))
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-        method: 'POST', headers, body: JSON.stringify({ contents }),
-      })
-      const d = await r.json()
-      if (d.error) throw new Error(d.error.message)
-      return { content: d.candidates[0].content.parts[0].text, tokens: d.usageMetadata?.totalTokenCount || 0 }
-    }
-
-    case 'mistral': {
-      const r = await fetch('https://api.mistral.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: { ...headers, 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, messages, max_tokens: 4096 }),
-      })
-      const d = await r.json()
-      if (d.error) throw new Error(d.error.message)
-      return { content: d.choices[0].message.content, tokens: d.usage?.total_tokens || 0 }
-    }
-
-    case 'nvidia': {
-      const r = await fetch(`https://integrate.api.nvidia.com/v1/chat/completions`, {
-        method: 'POST',
-        headers: { ...headers, 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, messages, max_tokens: 4096, temperature: 0.7 }),
-      })
-      const d = await r.json()
-      if (d.error) throw new Error(d.error.message)
-      return { content: d.choices[0].message.content, tokens: d.usage?.total_tokens || 0 }
-    }
-
-    default:
-      throw new Error(`Provider ${provider} no implementado`)
+  let count = 0
+  for (const session of sessions) {
+    try {
+      const msgs = typeof session.messages === 'string' ? JSON.parse(session.messages) : (session.messages || [])
+      for (const m of msgs) {
+        if (m.role === 'user' && m.timestamp?.startsWith(today)) count++
+      }
+    } catch { /* skip malformed messages */ }
   }
+  return count
 }
 
 export async function POST(req: NextRequest) {
@@ -120,13 +68,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Modelo no soportado' }, { status: 400 })
     }
 
-    const today = new Date().toISOString().split('T')[0]
-    const { data: todaySessions } = await supabaseAdmin
-      .from('chat_sessions')
-      .select('id')
-      .eq('user_id', user.id)
-      .gte('updated_at', today)
-
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('subscription_tier')
@@ -134,9 +75,9 @@ export async function POST(req: NextRequest) {
       .single()
 
     const plan = profile?.subscription_tier || 'free'
-    const usedToday = (todaySessions || []).length
+    const messagesToday = await countMessagesToday(user.id)
 
-    if (plan !== 'pro' && usedToday >= 10) {
+    if (plan !== 'pro' && messagesToday >= 10) {
       return NextResponse.json({
         error: 'Limite diario alcanzado (10 consultas/dia en plan free). Actualiza a Pro para consultas ilimitadas.',
         limitReached: true,
@@ -152,10 +93,15 @@ export async function POST(req: NextRequest) {
       }, { status: 402 })
     }
 
-    const result = await callProvider(modelConfig.provider, apiKey, modelConfig.model, messages)
+    const result = await callProvider(modelConfig.provider, apiKey, messages, modelConfig.model)
 
-    const updatedMessages = [...messages, { role: 'assistant', content: result.content }]
-    const title = messages[0]?.content?.substring(0, 80) || 'Nueva conversacion'
+    const now = new Date().toISOString()
+    const userMessages = messages.filter((m: any) => m.role === 'user')
+    const updatedMessages = [
+      ...messages,
+      { role: 'assistant', content: result.content, timestamp: now },
+    ]
+    const title = userMessages[0]?.content?.substring(0, 80) || 'Nueva conversacion'
 
     let sid = sessionId
     if (sid) {
@@ -165,9 +111,9 @@ export async function POST(req: NextRequest) {
           messages: JSON.stringify(updatedMessages),
           model: modelId,
           provider: modelConfig.provider,
-          tokens_used: supabaseAdmin.rpc('increment_tokens', { x: result.tokens }),
+          tokens_used: result.tokens,
           title,
-          updated_at: new Date().toISOString(),
+          updated_at: now,
         })
         .eq('id', sid)
         .eq('user_id', user.id)
@@ -187,15 +133,17 @@ export async function POST(req: NextRequest) {
       if (newSession) sid = newSession.id
     }
 
+    const newCount = messagesToday + 1
+
     return NextResponse.json({
       content: result.content,
       tokens: result.tokens,
       sessionId: sid,
       usage: {
-        used_today: usedToday + 1,
+        used_today: newCount,
         limit: plan === 'pro' ? 999 : 10,
         plan,
-        canChat: plan === 'pro' || usedToday + 1 < 10,
+        canChat: plan === 'pro' || newCount < 10,
       },
     })
   } catch (err: unknown) {

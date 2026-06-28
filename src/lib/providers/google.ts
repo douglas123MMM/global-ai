@@ -1,4 +1,4 @@
-export async function callGoogle(apiKey: string, messages: any[], model: string): Promise<string> {
+export async function callGoogle(apiKey: string, messages: any[], model: string): Promise<{ content: string; tokens: number }> {
   const contents = messages.map((m: any) => ({
     parts: [{ text: m.content }],
     role: m.role === 'assistant' ? 'model' : 'user',
@@ -10,5 +10,5 @@ export async function callGoogle(apiKey: string, messages: any[], model: string)
   })
   const data = await res.json()
   if (data.error) throw new Error(`Google: ${data.error.message}`)
-  return data.candidates[0].content.parts[0].text
+  return { content: data.candidates[0].content.parts[0].text, tokens: data.usageMetadata?.totalTokenCount || 0 }
 }

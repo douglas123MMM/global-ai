@@ -22,13 +22,32 @@ export default function ChatPage() {
     if (!authLoading && !user) { router.push('/login?redirect=/chat') }
   }, [user, authLoading, router])
 
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === '\\' && e.ctrlKey) {
+        e.preventDefault()
+        setSidebarOpen((p) => !p)
+      }
+      if (e.key === 'k' && e.ctrlKey) {
+        e.preventDefault()
+        document.querySelector<HTMLTextAreaElement>('textarea')?.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
+
   if (authLoading || chat.isLoadingSessions) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
-        <div className="flex gap-2">
-          {[0, 150, 300].map((d) => (
-            <div key={d} className="w-2.5 h-2.5 rounded-full animate-bounce" style={{ background: 'var(--primary)', animationDelay: `${d}ms` }} />
-          ))}
+        <div className="text-center space-y-4">
+          <div className="flex items-center justify-center gap-2">
+            {[0, 150, 300].map((d) => (
+              <div key={d} className="w-3 h-3 rounded-full animate-bounce"
+                style={{ background: 'var(--primary)', animationDelay: `${d}ms` }} />
+            ))}
+          </div>
+          <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Cargando Global AI...</p>
         </div>
       </div>
     )
@@ -41,12 +60,18 @@ export default function ChatPage() {
   }
 
   const EmptyState = () => (
-    <div className="text-center max-w-lg px-4 animate-fade-in">
-      <h1 className="text-3xl md:text-4xl font-bold mb-4 gradient-text">Global AI Chat</h1>
-      <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
-        8 modelos de IA. 6 proveedores. Trae tu propia API Key.
+    <div className="text-center max-w-xl px-4 animate-fade-in">
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
+        style={{ background: 'var(--primary-light)' }}>
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--primary)' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+        </svg>
+      </div>
+      <h1 className="text-3xl md:text-4xl font-bold mb-3 gradient-text">Global AI Chat</h1>
+      <p className="text-sm mb-8 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+        8 modelos de IA. 6 proveedores. <span style={{ color: 'var(--primary)', fontWeight: 600 }}>Trae tu propia API Key.</span>
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-left">
         {[
           { text: 'Explicame como funciona la computacion cuantica', icon: '🔬' },
           { text: 'Escribe una funcion en Python para ordenar datos', icon: '💻' },
@@ -56,11 +81,11 @@ export default function ChatPage() {
           <button
             key={i}
             onClick={() => chat.sendMessage(t.text)}
-            className="p-4 rounded-xl text-sm text-left transition border hover:border-primary/50 hover:-translate-y-0.5"
+            className="p-4 rounded-2xl text-sm transition-all hover:scale-[1.02] active:scale-[0.98] text-left border"
             style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
           >
-            <span className="block mb-1 text-lg">{t.icon}</span>
-            {t.text}
+            <span className="block mb-2 text-xl">{t.icon}</span>
+            <span className="leading-relaxed">{t.text}</span>
           </button>
         ))}
       </div>
@@ -68,73 +93,98 @@ export default function ChatPage() {
   )
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--bg-primary)' }}>
-      {sidebarOpen && (
-        <div className="fixed md:sticky top-0 left-0 h-screen z-30 md:z-0 shadow-2xl md:shadow-none">
-          <ChatSidebar
-            sessions={chat.sessions}
-            currentSessionId={chat.currentSession?.id}
-            onNewChat={() => chat.createSession('Nueva conversacion', chat.selectedModel)}
-            onSelectSession={chat.switchSession}
-            onDeleteSession={chat.deleteSession}
-            onRenameSession={chat.renameSession}
-            isOpen={sidebarOpen}
-            onToggle={() => setSidebarOpen(false)}
-          />
-        </div>
-      )}
+    <div className="h-screen flex overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
+      <ChatSidebar
+        sessions={chat.sessions}
+        currentSessionId={chat.currentSession?.id}
+        onNewChat={() => chat.createSession('Nueva conversacion', chat.selectedModel)}
+        onSelectSession={chat.switchSession}
+        onDeleteSession={chat.deleteSession}
+        onRenameSession={chat.renameSession}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(false)}
+      />
 
-      {!sidebarOpen && (
-        <button onClick={() => setSidebarOpen(true)}
-          className="fixed top-4 left-4 z-20 p-2 rounded-xl shadow-lg md:hidden"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--text-muted)' }}>
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
-      )}
-
-      <div className="flex-1 flex flex-col min-h-screen min-w-0">
-        <header className="flex items-center justify-between px-3 md:px-4 py-2 border-b sticky top-0 z-20"
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        <header className="flex items-center justify-between px-3 md:px-5 py-3 border-b flex-shrink-0"
           style={{ background: 'var(--nav-bg)', borderColor: 'var(--border)', backdropFilter: 'blur(16px)' }}>
-          <div className="flex items-center gap-2 min-w-0">
-            <button onClick={() => setSidebarOpen((p) => !p)}
-              className="p-1.5 rounded-lg hover:bg-card-hover transition flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen((p) => !p)}
+              className="p-2 rounded-xl transition hover:bg-card-hover"
+              style={{ color: 'var(--text-muted)' }}
+              title="Ctrl+\ para toggle sidebar"
+            >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <Link href="/" className="text-base md:text-lg font-bold gradient-text truncate">Global AI</Link>
+            {chat.currentSession && (
+              <div className="hidden sm:block">
+                <h2 className="text-sm font-semibold truncate max-w-[200px]" style={{ color: 'var(--text-primary)' }}>
+                  {chat.currentSession.title}
+                </h2>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="hidden sm:flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-              {chat.usage.limit === 'unlimited'
-                ? <span style={{ color: 'var(--success)' }}>✨ Pro</span>
-                : <span>{chat.messagesToday}/{chat.usage.limit} hoy</span>}
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full font-medium"
+              style={{
+                background: chat.isLimitReached ? 'var(--danger-light)' : 'var(--success-light)',
+                color: chat.isLimitReached ? 'var(--danger)' : 'var(--success)',
+              }}>
+              {chat.usage.plan === 'pro' ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--success)' }} />
+                  Pro · Ilimitado
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: chat.isLimitReached ? 'var(--danger)' : 'var(--success)' }} />
+                  {chat.messagesToday}/{chat.usage.limit} hoy
+                </>
+              )}
             </div>
             <ModelSelector value={chat.selectedModel} onChange={chat.setSelectedModel} />
             <ThemeToggle />
-            <Link href="/settings/keys" className="text-xs hover:text-primary transition hidden sm:inline" style={{ color: 'var(--text-muted)' }}>Keys</Link>
+            <Link href="/settings/keys" className="hidden sm:flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full font-medium transition hover:bg-card-hover"
+              style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+              Keys
+            </Link>
           </div>
         </header>
 
         {chat.error && (
-          <div className="px-4 py-2 text-xs font-medium flex items-center gap-2" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
+          <div className="px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 flex-shrink-0"
+            style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
             <span>⚠️</span> {chat.error}
-            <Link href="/settings/keys" className="underline ml-auto">Configurar</Link>
+            <Link href="/settings/keys" className="underline font-bold ml-2">Configurar API Keys</Link>
           </div>
         )}
 
         {chat.isLimitReached && (
-          <div className="px-4 py-2 text-xs font-medium flex items-center gap-2" style={{ background: 'var(--warning-light)', color: 'var(--warning)' }}>
-            <span>⚠️</span> Limite diario alcanzado ({chat.messagesToday} consultas). <Link href="/pricing" className="underline ml-auto font-bold">Actualizar a Pro</Link>
+          <div className="px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 flex-shrink-0"
+            style={{ background: 'var(--warning-light)', color: 'var(--warning)' }}>
+            <span>⚠️</span> Limite diario alcanzado ({chat.messagesToday} consultas).
+            <Link href="/pricing" className="underline font-bold ml-2">Actualizar a Pro</Link>
           </div>
         )}
 
         <MessageList messages={chat.messages} loading={chat.isLoading} emptyState={<EmptyState />} />
-        <MessageInput value={input} onChange={setInput} onSend={handleSend}
+        <MessageInput
+          value={input}
+          onChange={setInput}
+          onSend={handleSend}
           disabled={chat.isLoading || chat.isLimitReached}
-          placeholder={chat.isLimitReached ? 'Limite diario alcanzado. Actualiza a Pro.' : 'Escribe tu mensaje...'} />
+          placeholder={
+            chat.isLimitReached
+              ? 'Limite diario alcanzado. Actualiza a Pro.'
+              : `Escribe un mensaje... (${chat.selectedModel})`
+          }
+        />
       </div>
     </div>
   )

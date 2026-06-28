@@ -7,9 +7,15 @@ import { ThemeProvider } from "@/lib/theme";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Global AI - Plataforma de Referidos",
-  description: "Sistema de referidos con comisiones recurrentes. Gana dinero real compartiendo Global AI.",
-};
+  title: 'Global AI — Gana Dinero Real Compartiendo IA',
+  description: 'Programa de afiliados con comisiones recurrentes del 20-25%. Retira tus ganancias por PayPal o Stripe. Multiples modelos de IA en un solo chat.',
+  keywords: 'IA, inteligencia artificial, afiliados, ganar dinero, ChatGPT, Claude, referidos, comisiones',
+  openGraph: {
+    title: 'Global AI — Gana Dinero Real Compartiendo IA',
+    description: 'Comisiones recurrentes del 20-25% cada mes. Retira por PayPal o Stripe.',
+    type: 'website',
+  },
+}
 
 export default function RootLayout({
   children,

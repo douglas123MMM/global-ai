@@ -10,7 +10,8 @@ const PROVIDERS = [
   { id: 'anthropic', name: 'Anthropic', models: 'Claude 3.5 Sonnet, Claude 3 Haiku', icon: '🎯', placeholder: 'sk-ant-...' },
   { id: 'google', name: 'Google AI', models: 'Gemini 2.0 Flash', icon: '🌟', placeholder: 'AIza...' },
   { id: 'mistral', name: 'Mistral', models: 'Mistral Large', icon: '🌪️', placeholder: '...' },
-  { id: 'groq', name: 'Groq', models: 'Llama 3.3 70B', icon: '🦙', placeholder: 'gsk_...' },
+  { id: 'groq', name: 'Groq', models: 'Llama 3.3 70B, Mixtral 8x7B', icon: '🦙', placeholder: 'gsk_...' },
+  { id: 'nvidia', name: 'NVIDIA', models: 'Llama 3.1 405B', icon: '💎', placeholder: 'nvapi-...' },
 ]
 
 type ApiKeyRow = { id: string; provider: string; is_valid: boolean; created_at: string; last_validated_at: string | null }
@@ -172,6 +173,7 @@ export default function ApiKeysPage() {
             <li>Google: <a href="https://aistudio.google.com/apikey" target="_blank" className="underline" style={{color:'var(--primary)'}}>aistudio.google.com/apikey</a></li>
             <li>Mistral: <a href="https://console.mistral.ai/api-keys" target="_blank" className="underline" style={{color:'var(--primary)'}}>console.mistral.ai/api-keys</a></li>
             <li>Groq: <a href="https://console.groq.com/keys" target="_blank" className="underline" style={{color:'var(--primary)'}}>console.groq.com/keys</a></li>
+            <li>NVIDIA: <a href="https://build.nvidia.com/explore/discover" target="_blank" className="underline" style={{color:'var(--primary)'}}>build.nvidia.com</a></li>
           </ul>
         </div>
       </div>

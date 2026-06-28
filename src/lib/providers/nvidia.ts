@@ -1,4 +1,4 @@
-export async function callNVIDIA(apiKey: string, messages: any[], model: string): Promise<string> {
+export async function callNVIDIA(apiKey: string, messages: any[], model: string): Promise<{ content: string; tokens: number }> {
   const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -6,5 +6,5 @@ export async function callNVIDIA(apiKey: string, messages: any[], model: string)
   })
   const data = await res.json()
   if (data.error) throw new Error(`NVIDIA: ${data.error.message}`)
-  return data.choices[0].message.content
+  return { content: data.choices[0].message.content, tokens: data.usage?.total_tokens || 0 }
 }
