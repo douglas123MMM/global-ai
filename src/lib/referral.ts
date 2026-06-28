@@ -14,7 +14,7 @@ export async function getOrCreateReferralCode(userId: string) {
 
   if (existing) return existing
 
-  const { data, error } = await supabaseAdmin.rpc('generate_referral_code', {
+  const { error } = await supabaseAdmin.rpc('generate_referral_code', {
     user_uuid: userId,
   })
 

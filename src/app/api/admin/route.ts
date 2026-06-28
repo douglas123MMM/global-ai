@@ -29,9 +29,9 @@ export async function GET(req: NextRequest) {
 
     switch (action) {
       case 'dashboard': {
-        const { data: users } = await supabaseAdmin
+        const { count: userCount } = await supabaseAdmin
           .from('profiles')
-          .select('id', { count: 'exact', head: true })
+          .select('*', { count: 'exact', head: true })
         const { count: refCount } = await supabaseAdmin
           .from('referrals')
           .select('*', { count: 'exact', head: true })
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
         const pendingWithdrawals = withdrawals?.reduce((a, w) => a + Number(w.amount), 0) || 0
 
         return NextResponse.json({
-          total_users: users?.count || 0,
+          total_users: userCount || 0,
           total_referrals: refCount || 0,
           total_commissions: totalCommissions,
           pending_withdrawals: pendingWithdrawals,
