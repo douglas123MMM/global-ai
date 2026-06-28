@@ -11,7 +11,10 @@ import CommissionsHistory from '@/components/Referrals/CommissionsHistory'
 import WithdrawModal from '@/components/Referrals/WithdrawModal'
 import WithdrawalsHistory from '@/components/Referrals/WithdrawalsHistory'
 import LevelProgress from '@/components/Referrals/LevelProgress'
-import BonusNotification from '@/components/Referrals/BonusNotification'
+import EarningsChart from '@/components/Referrals/EarningsChart'
+import Achievements from '@/components/Referrals/Achievements'
+import RealtimeNotifications from '@/components/Referrals/RealtimeNotifications'
+import ThemeToggle from '@/components/Referrals/ThemeToggle'
 
 export default function ReferralsPage() {
   const { user, loading: authLoading } = useAuth()
@@ -80,14 +83,18 @@ export default function ReferralsPage() {
 
   return (
     <div className="min-h-screen">
-      <BonusNotification />
+      <RealtimeNotifications userId={user?.id} />
 
-      <nav className="glass px-6 py-4 flex items-center justify-between flex-wrap gap-3">
-        <Link href="/" className="text-xl font-bold gradient-text">Global AI</Link>
+      <nav className="glass px-4 md:px-6 py-3 md:py-4 flex items-center justify-between flex-wrap gap-2 sticky top-0 z-40"
+        style={{ background: 'var(--nav-bg)', backdropFilter: 'blur(16px)' }}>
+        <div className="flex items-center gap-3">
+          <Link href="/" className="text-lg md:text-xl font-bold gradient-text">Global AI</Link>
+          <ThemeToggle />
+        </div>
         <div className="flex gap-3 items-center flex-wrap">
           <Link href="/dashboard" className="text-sm hover:text-primary">Dashboard</Link>
           <Link href="/referrals/leaderboard" className="text-sm hover:text-primary">Ranking</Link>
-          <span className="text-sm text-text-muted">{user?.email}</span>
+          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</span>
         </div>
       </nav>
 
@@ -135,28 +142,48 @@ export default function ReferralsPage() {
         </div>
 
         {tab === 'overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <LevelProgress
-              totalReferrals={stats?.total_referrals || 0}
-              currentTier={stats?.current_tier || 'level1'}
-              commissionPercentage={stats?.commission_percentage || 20}
-              bonusesClaimed={bonusesClaimed}
-            />
-            <div className="space-y-4">
-              <div className="glass p-4 rounded-xl">
-                <h3 className="text-sm text-text-muted mb-2">Acceso Rapido</h3>
-                <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <LevelProgress
+                totalReferrals={stats?.total_referrals || 0}
+                currentTier={stats?.current_tier || 'level1'}
+                commissionPercentage={stats?.commission_percentage || 20}
+                bonusesClaimed={bonusesClaimed}
+              />
+              <div className="space-y-4">
+                <EarningsChart
+                  data={commissions?.length
+                    ? commissions.slice(0, 12).reverse().map((c: any) => ({
+                        label: `${c.month}/${c.year}`,
+                        value: Number(c.amount),
+                      }))
+                    : []}
+                />
+              </div>
+            </div>
+            <Achievements achievements={[
+              { id: 'first', name: 'Iniciado', description: 'Primer referido', icon: '🎉', unlocked: (stats?.total_referrals || 0) >= 1, rarity: 'common' },
+              { id: 'ten', name: 'Popular', description: '10 referidos', icon: '⭐', unlocked: (stats?.total_referrals || 0) >= 10, rarity: 'rare', progress: { current: stats?.total_referrals || 0, target: 10 } },
+              { id: 'level2', name: 'Experto', description: 'Nivel 2 alcanzado', icon: '💎', unlocked: stats?.current_tier === 'level2' || stats?.current_tier === 'founder', rarity: 'epic' },
+              { id: 'fifty', name: 'Influencer', description: '50 referidos', icon: '🔥', unlocked: (stats?.total_referrals || 0) >= 50, rarity: 'epic', progress: { current: stats?.total_referrals || 0, target: 50 } },
+              { id: 'hundred', name: 'Leyenda', description: '100 referidos', icon: '👑', unlocked: (stats?.total_referrals || 0) >= 100, rarity: 'legendary', progress: { current: stats?.total_referrals || 0, target: 100 } },
+              { id: 'founder', name: 'Fundador', description: 'Top 1000', icon: '🏅', unlocked: stats?.current_tier === 'founder' || bonusesClaimed.includes('founder'), rarity: 'legendary' },
+              { id: 'earner', name: 'Ganador', description: '$100+ ganados', icon: '💵', unlocked: (stats?.total_earned || 0) >= 100, rarity: 'rare', progress: { current: Math.min(stats?.total_earned || 0, 100), target: 100 } },
+              { id: 'big_earner', name: 'Master', description: '$1000+ ganados', icon: '🏆', unlocked: (stats?.total_earned || 0) >= 1000, rarity: 'legendary', progress: { current: Math.min(stats?.total_earned || 0, 1000), target: 1000 } },
+            ]} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="card p-4">
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Acceso Rapido</p>
+                <div className="grid grid-cols-2 gap-2 mt-2">
                   {[
                     { label: 'Ver Ranking', href: '/referrals/leaderboard' },
                     { label: 'Comprar Plan', href: '/pricing' },
                     { label: 'Dashboard', href: '/dashboard' },
                     { label: 'Soporte', href: '#' },
                   ].map((l) => (
-                    <Link
-                      key={l.label}
-                      href={l.href}
-                      className="glass p-2 rounded-lg text-xs text-center hover:bg-card-hover transition"
-                    >
+                    <Link key={l.label} href={l.href}
+                      className="p-2 rounded-lg text-xs text-center transition hover:scale-[1.02]"
+                      style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>
                       {l.label}
                     </Link>
                   ))}
